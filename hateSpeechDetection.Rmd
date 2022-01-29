@@ -1,0 +1,242 @@
+---
+title: "Hate Speech Detection"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+</div>
+<div style="float: right; width: 100%;">
+<p style="margin: 0; padding-top: 100px; text-align:right; font-size: 30px;">Natural Language Processing</p>
+<p style="margin: 0; padding-top: 10px; text-align:right; font-size: 30px; padding-button: 100px;">Itziar Alonso Marco</p>
+</div>
+</div>
+<div style="width:100%;">&nbsp;</div>
+
+
+
+
+
+Importing libraries
+```{r}
+library(quanteda)
+library(corpus)
+library(tm)
+library(tokenizers.bpe)
+library(wordcloud)
+library(quanteda.textmodels)
+library(e1071)
+
+```
+
+## 1. Data import and data information extraction
+
+
+```{r}
+data <- read.csv("data/labeled_data.csv")
+```
+
+Shape of the dataframe
+
+```{r}
+print(str(data))
+
+```
+
+We are going to analyze the structure of the dataset, printing the first five rows of the dataset.
+
+
+```{r}
+head(data)
+```
+
+#### Features description
+
+Apart from the id column (X), each data file contains 5 columns:
+
+1. count (quantitative) --> number of CrowdFlower users who coded each tweet (min is 3, sometimes more users coded a tweet when judgments were determined to be unreliable by CF).
+
+2. hate_speech (quantitative) --> number of CF users who judged the tweet to be hate speech.
+
+3. offensive_language (quantitative) --> number of CF users who judged the tweet to be offensive.
+
+4. neither (quantitative) --> number of CF users who judged the tweet to be neither offensive nor non-offensive.
+
+5. class (qualitative) --> class label for majority of CF users. 0 - hate speech 1 - offensive language 2 - neither
+
+6. tweet (string) --> Text containing the analyzed tweet.
+
+
+The variables count hate_speech, offensive_language and neither were used to calculate the value of the class. Therefore, to classify the tweets we are only interested in the text that contains the tweet (tweet) and the class variable (class). Therefore, we eliminate the columns from X to neither, selecting only the class and tweet variables.
+
+```{r}
+data <- subset( data, select = -c(X:neither ))
+head(data)
+```
+
+```{r}
+print(paste("Number of missing values:", sum(is.na(data))))
+print("Table with the number of tweets for each label")
+table(data$class)
+
+print("Bar Plot of the class variable")
+counts <- table(data$class)
+barplot(counts, main="Class distribution",
+   xlab="Class label",
+   ylab="Number of tweets")
+```
+
+## 2. Data Preparation
+
+In this section the data is going to be transformed and cleaned.
+
+### 2.1. Tranform the data
+
+Before starting to clean the dataset, the tweet column has been transformed into a string using the as.character() method. Then, we created a VCourpus using tm, by passing a vector source object as a parameter to the VCorpus methos.
+
+```{r}
+
+data$tweet = as.character(data$tweet)
+tweet_corpus <- VCorpus(VectorSource(data$tweet))
+```
+
+See the size and the first five elements of the VCorpus
+
+```{r}
+print("Size of the VCorpus object")
+print(tweet_corpus)
+
+print("First 5 elements of the VCorpus object")
+lapply(tweet_corpus[1:5],as.character)
+```
+
+### 2.2. Clean the data
+
+We have seen how the data contains exclamation marks, the letters RT to indicate that it is a retweet, and the user's name (e.g. @mayasolovely). In addition they also contain numbers, punctuation and stop words. In order to analyze the tweets, all these terms must be eliminated. To clean the tweets we are going to use the tm_map() method.
+
+```{r}
+tweet_cleaned <- tm_map(tweet_corpus,content_transformer(tolower)) #converting to lower case letters
+tweet_cleaned <- tm_map(tweet_cleaned,removeNumbers) #removing numbers
+
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x)) #function created to remove special characters for this dataset
+regexUsername <- "(^|[^@\\w])@(\\w{1,15})\\b" #removing the username, being a username a group of letters after an @
+tweet_cleaned <- tm_map(tweet_cleaned, toSpace, regexUsername)
+tweet_cleaned <- tm_map(tweet_cleaned, toSpace, "(f|ht)tp(s?)://(.*)[.][a-z]+") #removing the word rt #removing URLs
+tweet_cleaned <- tm_map(tweet_cleaned, toSpace, "#ff") #removing the word #ff
+tweet_cleaned <- tm_map(tweet_cleaned, toSpace, "rt") #removing the word rt
+             
+                  
+tweet_cleaned <- tm_map(tweet_cleaned,removeWords,stopwords()) #remvoing stop words
+tweet_cleaned <- tm_map(tweet_cleaned,removePunctuation) #removing punctuation
+tweet_cleaned <- tm_map(tweet_cleaned, stripWhitespace) #removing strip white spaces
+```
+
+See the five first tweets after cleaning the data
+
+```{r}
+lapply(tweet_cleaned[1:5],as.character)
+```
+
+### 2.3. Tokenization
+
+With tokenization we are going to split the tweets into individual components. To do this we are going to use the DocumentTermMatrix method. We are going to obtain a document term matrix (DTM), where each row corresponds to a tweet and the columns represent the terms in which each tweet has been separated.
+
+```{r}
+dtm_tweet <- DocumentTermMatrix(tweet_cleaned)
+```
+
+### 2.4. Train test split
+
+In order to test the performance of the model, the data is separated into train and test split, where 70% of the data will be used to train the model and the remaining 30% to test it.
+
+```{r}
+train_tweet <- dtm_tweet[1:18587,]
+test_tweet <- dtm_tweet[18588:24782,]
+train_class <- data[1:18587,]$class
+test_class <- data[18588:24782,]$class
+
+prop.table(table(train_class))
+prop.table(table(test_class))
+```
+
+## 3. Data Exploration
+
+In this section of data is explored and studied to extract useful information for the model.
+
+### 3.1. Word Cloud
+
+Representing the data in a wordcloud we can see the most frequent words in the dataset.
+
+```{r}
+wordcloud(tweet_cleaned,min.freq = 50,random.order = FALSE)
+```
+
+Through the previous wordcloud, not much information can be extracted since we do not know to which class each of the words belongs. Let's see what are the most frequent words for each of the classes (0-Hate speech, 1-Offensive language and 2-neither).
+
+```{r}
+two <- subset(data,class == "2")
+one <- subset(data,class == "1")
+zero <- subset(data,class == "0")
+
+wordcloud(zero$tweet,max.words = 40,scale = c(3,0.5),  main="Tweets with hate speech")
+wordcloud(one$tweet,max.words = 40,scale = c(3,0.5), main="Tweets with offensive language")
+wordcloud(two$tweet,max.words = 40,scale = c(3,0.5), main="Tweets without hate speech and offerensive language")
+```
+
+### 3.2. Frequent Terms
+
+Now we are going to analyze the most frequent words using the function findFreqTerms().
+
+```{r}
+tweet_freq_words <- findFreqTerms(train_tweet,5)
+str(tweet_freq_words)
+```
+
+## 4. Models
+
+Using the matrix obtained after using the findFreqTerms method with the most frequent terms, we are going to reduce the train test and keep only the most relevant words. Then we are goin to use the conver_vlaues() function to change the values that have a value bigger than 0, to 'Yes', and the ones that have a value less than or equal to zero to 'No.' We are going to convert the values to Yes and No since the model we are going to use is Naive Bayes, and it works better with categorical variables.
+
+```{r}
+train_freq_words <- train_tweet[,tweet_freq_words]
+test_freq_words <- test_tweet[,tweet_freq_words]
+convert_values <- function(x){
+  x <- ifelse(x>0,"Yes","No") 
+}
+
+train_tweet_freq <- apply(train_freq_words,MARGIN = 2,convert_values)
+test_tweet_freq <- apply(test_freq_words,MARGIN = 2,convert_values)
+```
+
+### 4.1. Train the model
+
+The Naive Bayes algorithm has been used to train the model with the training set obtained in the section before.
+
+```{r}
+naiveModel <- naiveBayes(train_tweet_freq,train_class)
+```
+
+### 4.2. Prediction
+
+With the model trained using the training set, we are going to predict the instances of the test set.
+
+```{r}
+tweet_pred <- predict(naiveModel,test_tweet_freq)
+```
+
+### 4.3. Evaluation of the results
+
+Finally, to measure the performance of the model we are going to compare the predictions of the naive bayes model with the real classes of the test set. To do this we are going to use the accuracy metrics and the confusion matrix.
+
+```{r}
+my_acc_coincidences <- sum(as.character(tweet_pred) == as.character(test_class))
+my_acc_total <- length(as.character(tweet_pred))
+my_acc <- my_acc_coincidences/my_acc_total
+print("Accuracy:")
+print(my_acc)
+print("Confusion Matrix:")
+table(tweet_pred,test_class)
+```
+
