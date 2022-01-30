@@ -1,6 +1,13 @@
+# Model
+
+This directory contains the hateSpeechDetection.Rmd file, which is the code with the natural language processing model.
+
+To execute the code it can be done in RStudio, with the option ```kinit to HTML```
+
+
 # Data
 
-The data are stored as a CSV, where each instance contains 5 columns:
+The folfer Data contains the datased stored as a CSV, where each instance contains 5 columns:
 
 `count` = number of CrowdFlower users who coded each tweet (min is 3, sometimes more users coded a tweet when judgments were determined to be unreliable by CF).
 
