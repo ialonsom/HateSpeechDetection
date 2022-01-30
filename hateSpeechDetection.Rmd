@@ -197,7 +197,7 @@ str(tweet_freq_words)
 
 ## 4. Models
 
-Using the matrix obtained after using the findFreqTerms method with the most frequent terms, we are going to reduce the train test and keep only the most relevant words. Then we are goin to use the conver_vlaues() function to change the values that have a value bigger than 0, to 'Yes', and the ones that have a value less than or equal to zero to 'No.' We are going to convert the values to Yes and No since the model we are going to use is Naive Bayes, and it works better with categorical variables.
+Using the matrix obtained after using the findFreqTerms method with the most frequent terms, we are going to reduce the train test and keep only the most relevant words. Then we are going to use the conver_vlaues() function to change the values that have a value bigger than 0, to 'Yes', and the ones that have a value less than or equal to zero to 'No.' We are going to convert the values to Yes and No since the model we are going to use is Naive Bayes, and it works better with categorical variables.
 
 ```{r}
 train_freq_words <- train_tweet[,tweet_freq_words]
