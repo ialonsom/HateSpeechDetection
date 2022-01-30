@@ -2,7 +2,7 @@
 
 This directory contains the hateSpeechDetection.Rmd file, which is the code with the natural language processing model.
 
-To execute the code it can be done in RStudio, with the option ```kinit to HTML```
+To execute the code it can be done in RStudio, with the option ```knit to HTML```
 
 
 # Data
