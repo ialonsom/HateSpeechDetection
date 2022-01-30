@@ -7,7 +7,7 @@ To execute the code it can be done in RStudio, with the option ```knit to HTML``
 
 # Data
 
-The folfer Data contains the datased stored as a CSV, where each instance contains 5 columns:
+The folder `Data` contains the datased stored as a CSV, where each instance contains 5 columns:
 
 `count` = number of CrowdFlower users who coded each tweet (min is 3, sometimes more users coded a tweet when judgments were determined to be unreliable by CF).
 
